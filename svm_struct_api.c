@@ -19,7 +19,7 @@
 
 /*Jacky start*/
 #define N_STATES 48 //39?
-#define MAX_SENTENCE 700
+#define MAX_SENTENCE 1000
 #define INPUT_STATES 69
 #define LLONG_MIN -9223372036854775807
 /*Jacky end*/
@@ -63,10 +63,10 @@ SAMPLE      read_struct_examples(char *file, STRUCT_LEARN_PARM *sparm)
   FILE *fp = NULL; 
   
   n=4000; /* replace by appropriate number of examples */
-  examples=(EXAMPLE *)my_malloc(sizeof(EXAMPLE)*n);
+  examples=(EXAMPLE *)malloc(sizeof(EXAMPLE)*n);
 
   /* fill in your code here */
-  char *sentID = (char*)my_malloc(sizeof(char)*100);//for sentence Id
+  char *sentID = (char*)malloc(sizeof(char)*100);//for sentence Id
   //sentID = "";
   int i=-1, j=0, k=0; //for iteration
   int frame_size = 0;
@@ -92,8 +92,8 @@ SAMPLE      read_struct_examples(char *file, STRUCT_LEARN_PARM *sparm)
 	frame_size = sent_frame_size[i];
 	examples[i].x.len = frame_size;
 	examples[i].y.len = frame_size;
-	examples[i].x.seq = (float*)my_malloc(sizeof(float)*69*frame_size);
-	examples[i].y.lab = (int*)my_malloc(sizeof(int)*frame_size);
+	examples[i].x.seq = (float*)malloc(sizeof(float)*69*frame_size);
+	examples[i].y.lab = (int*)malloc(sizeof(int)*frame_size);
 	j=0;
    //printf("i: %d\n",i);
    //printf("frame: %d\n", frame_size);
@@ -117,6 +117,8 @@ SAMPLE      read_struct_examples(char *file, STRUCT_LEARN_PARM *sparm)
   fclose(fp);
   sample.n=n;
   sample.examples=examples;
+  printf("example_num: %d\n", example_num);
+  //printf("");
   return(sample);
 }
 
@@ -157,8 +159,8 @@ CONSTSET    init_struct_constraints(SAMPLE sample, STRUCTMODEL *sm,
   else { /* add constraints so that all learned weights are
             positive. WARNING: Currently, they are positive only up to
             precision epsilon set by -e. */
-    c.lhs=my_malloc(sizeof(DOC *)*sizePsi);
-    c.rhs=my_malloc(sizeof(double)*sizePsi);
+    c.lhs=malloc(sizeof(DOC *)*sizePsi);
+    c.rhs=malloc(sizeof(double)*sizePsi);
     for(i=0; i<sizePsi; i++) {
       words[0].wnum=i+1;
       words[0].weight=1.0;
@@ -176,6 +178,18 @@ int empty_label(LABEL y)
 	return(0);
 }
 
+double eval_prob(float *x,double *w,int y,int frame)
+{
+  double prob=0;
+  int i;
+  for(i=0;i<INPUT_STATES;++i)
+    prob+=w[y*INPUT_STATES+i+1]*x[frame*INPUT_STATES+i]; // The index to the vector w starts at 1, not at 0!
+  return prob;
+}
+double getloss(int x,int y)
+{
+  return (x==y)? 0:1;
+}
 
 
 LABEL       classify_struct_example(PATTERN x, STRUCTMODEL *sm, 
@@ -189,7 +203,62 @@ LABEL       classify_struct_example(PATTERN x, STRUCTMODEL *sm,
      function cannot find a label, it shall return an empty label as
      recognized by the function empty_label(y). */
   LABEL y;
-
+  /*Jacky start*/
+  double *prob_origin=(double*)malloc(sizeof(double)*N_STATES);
+  double *prob_current=(double*)malloc(sizeof(double)*N_STATES);
+  double *tmp_flip;
+  int **max_track=(int **)malloc(sizeof(int*)*x.len);
+  int i=0,j=0,k=0,max_lab=0;
+  double prob_max=LLONG_MIN;
+  /*prob init*/
+  for(i=0;i<x.len-1;++i)
+    max_track[i]=(int *)malloc(sizeof(int)*N_STATES);
+  /*evaluate probability*/
+  for(i=0;i<N_STATES;++i)
+    prob_origin[i] = eval_prob(x.seq,sm->w,i,0);
+  for(k=1;k<x.len;++k)
+  {
+    for(i=0;i<N_STATES;++i)
+    {
+      prob_current[i] =LLONG_MIN;
+      for(j=0;j<N_STATES;++j)
+      {
+        double tmp=prob_origin[j]+sm->w[INPUT_STATES*N_STATES+j*N_STATES+i+1]+eval_prob(x.seq,sm->w,i,k);
+        if(tmp > prob_current[i])
+        {
+            max_track[k-1][i] = j;
+            prob_current[i] = tmp;
+        }
+      }
+    }
+    tmp_flip = prob_origin;
+    prob_origin = prob_current;
+    prob_current=  tmp_flip;
+  }
+  /*y init*/
+  y.len=x.len;
+  y.lab=(char*) malloc(sizeof(char)*x.len);
+  for(i=0;i<N_STATES;++i)
+  {
+    if(prob_origin[i]>prob_max)
+    {
+      max_lab=i;
+      prob_max =prob_origin[i];
+    }
+  }
+  y.lab[y.len-1]= (char)max_lab;
+  for(i=y.len-2;i>=0;--i)
+  {
+    max_lab=max_track[i][max_lab];
+    y.lab[i]=(char)max_lab;
+  }
+  /*free malloc*/
+  for(i=0;i<x.len-1;++i)
+    free(max_track[i]);
+  free(max_track);
+  free(prob_origin);
+  free(prob_current);
+/*Jacky end*/
   /* insert your code for computing the predicted label y here */
 
   return(y);
@@ -230,18 +299,6 @@ LABEL       find_most_violated_constraint_slackrescaling(PATTERN x, LABEL y,
 
 
 /*Jacky start*/
-double eval_prob(float *x,double *w,int y,int frame)
-{
-  double prob=0;
-  int i;
-  for(i=0;i<INPUT_STATES;++i)
-    prob+=w[y*INPUT_STATES+i+1]*x[frame*INPUT_STATES+i]; // The index to the vector w starts at 1, not at 0!
-  return prob;
-}
-double getloss(int x,int y)
-{
-  return (x==y)? 0:1;
-}
 LABEL find_most_violated_constraint_marginrescaling(PATTERN x, LABEL y, 
                  STRUCTMODEL *sm, 
                  STRUCT_LEARN_PARM *sparm)
@@ -270,6 +327,7 @@ LABEL find_most_violated_constraint_marginrescaling(PATTERN x, LABEL y,
   LABEL ybar;
   /* insert your code for computing the label ybar here */
   /*Jacky start*/
+  
   static int first=1;
   static double *prob_origin,*prob_current;
   static int **max_track;
@@ -277,6 +335,7 @@ LABEL find_most_violated_constraint_marginrescaling(PATTERN x, LABEL y,
   double *tmp_flip,prob;
   double prob_max = LLONG_MIN;
   /*prob init*/
+  
   if(first)
   {
     first=0;
@@ -299,15 +358,12 @@ LABEL find_most_violated_constraint_marginrescaling(PATTERN x, LABEL y,
         prob=eval_prob(x.seq,sm->w,i,k);
         for(j=0;j<N_STATES;++j) 
         {
-	  printf("fuckfuck3: i: %d, j: %d \n", i, j);
           double tmp=prob_origin[j]+sm->w[INPUT_STATES*N_STATES+j*N_STATES+i+1]+prob+getloss(y.lab[k],i);
-	  printf("fuckfuck3\n");
           if(tmp>prob_current[i])
           {
             max_track[k-1][i]=j;
             prob_current[i]=tmp;
           }
-	  printf("fuckfuck4\n");
         }
       }
     }
@@ -317,7 +373,7 @@ LABEL find_most_violated_constraint_marginrescaling(PATTERN x, LABEL y,
   }
   /*y bar init*/
   ybar.len=x.len;
-  ybar.lab=(int*)malloc(sizeof(int)*x.len);
+  ybar.lab=(char*)malloc(sizeof(char)*x.len);
   for(i=0;i<N_STATES;++i) 
   {
     if(prob_origin[i]>prob_max)
@@ -326,11 +382,11 @@ LABEL find_most_violated_constraint_marginrescaling(PATTERN x, LABEL y,
       max_lab=i;
     }
   }
-  ybar.lab[ybar.len-1] =max_lab;
+  ybar.lab[ybar.len-1] =(char)max_lab;
   for(i=ybar.len-2;i>-1;--i)  /*should modify*/
   {
     max_lab=max_track[i][max_lab];
-    ybar.lab[i]=max_lab;
+    ybar.lab[i]=(char)max_lab;
   }
   /*Jacky end*/
   return(ybar);
@@ -361,7 +417,8 @@ SVECTOR     *psi(PATTERN x, LABEL y, STRUCTMODEL *sm,
      inner vector product) and the appropriate function of the
      loss + margin/slack rescaling method. See that paper for details. */
   SVECTOR *fvec = (SVECTOR*)malloc(sizeof(SVECTOR));
-  fvec->words = (WORD*)malloc(sizeof(WORD)*((69*48 + 48*48) + 1));
+  WORD* temp = (WORD*)malloc(sizeof(WORD)*((69*48 + 48*48) + 1));
+  fvec->words = temp;
   //fvec->twonorm_sq = 0.0;
   fvec->userdefined = (char*)malloc(sizeof(char));
   fvec->userdefined[0] = 0;
@@ -500,10 +557,12 @@ void        write_label(FILE *fp, LABEL y)
 
 void        free_pattern(PATTERN x) {
   /* Frees the memory of x. */
+  free(x.seq);
 }
 
 void        free_label(LABEL y) {
   /* Frees the memory of y. */
+  //free(y.lab);
 }
 
 void        free_struct_model(STRUCTMODEL sm) 
@@ -518,7 +577,8 @@ void        free_struct_sample(SAMPLE s)
 {
   /* Frees the memory of sample s. */
   int i;
-  for(i=0;i<s.n;i++) { 
+  for(i=0;i<s.n;i++)
+  { 
     free_pattern(s.examples[i].x);
     free_label(s.examples[i].y);
   }
