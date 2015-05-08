@@ -209,14 +209,14 @@ LABEL       classify_struct_example(PATTERN x, STRUCTMODEL *sm,
   LABEL y;
   /*Jacky start*/
   double *prob_origin=(double*)malloc(sizeof(double)*N_STATES);
-  double *prob_current=(double*)malloc(sizeof(double)*N_STATES);
+  double *prob_now=(double*)malloc(sizeof(double)*N_STATES);
   double *tmp_flip;
-  int **max_track=(int **)malloc(sizeof(int*)*x.len);
+  int **prob_2d_max=(int **)malloc(sizeof(int*)*x.len);
   int i=0,j=0,k=0,max_lab=0;
   double prob_max=LLONG_MIN;
   /*prob init*/
   for(i=0;i<x.len-1;++i)
-    max_track[i]=(int *)malloc(sizeof(int)*N_STATES);
+    prob_2d_max[i]=(int *)malloc(sizeof(int)*N_STATES);
   /*evaluate probability*/
   for(i=0;i<N_STATES;++i)
     prob_origin[i] = eval_prob(x.seq,sm->w,i,0);
@@ -224,20 +224,20 @@ LABEL       classify_struct_example(PATTERN x, STRUCTMODEL *sm,
   {
     for(i=0;i<N_STATES;++i)
     {
-      prob_current[i] =LLONG_MIN;
+      prob_now[i] =LLONG_MIN;
       for(j=0;j<N_STATES;++j)
       {
         double tmp=prob_origin[j]+sm->w[INPUT_STATES*N_STATES+j*N_STATES+i+1]+eval_prob(x.seq,sm->w,i,k);
-        if(tmp > prob_current[i])
+        if(tmp > prob_now[i])
         {
-            max_track[k-1][i] = j;
-            prob_current[i] = tmp;
+            prob_2d_max[k-1][i] = j;
+            prob_now[i] = tmp;
         }
       }
     }
     tmp_flip = prob_origin;
-    prob_origin = prob_current;
-    prob_current=  tmp_flip;
+    prob_origin = prob_now;
+    prob_now=  tmp_flip;
   }
   /*y init*/
   y.len=x.len;
@@ -253,15 +253,15 @@ LABEL       classify_struct_example(PATTERN x, STRUCTMODEL *sm,
   y.lab[y.len-1]=(char)max_lab;
   for(i=y.len-2;i>=0;--i)
   {
-    max_lab=max_track[i][max_lab];
+    max_lab=prob_2d_max[i][max_lab];
     y.lab[i]=(char)max_lab;
   }
   /*free malloc*/
   for(i=0;i<x.len-1;++i)
-    free(max_track[i]);
-  free(max_track);
+    free(prob_2d_max[i]);
+  free(prob_2d_max);
   free(prob_origin);
-  free(prob_current);
+  free(prob_now);
 /*Jacky end*/
   /* insert your code for computing the predicted label y here */
 
@@ -332,23 +332,16 @@ LABEL find_most_violated_constraint_marginrescaling(PATTERN x, LABEL y,
   /* insert your code for computing the label ybar here */
   /*Jacky start*/
   
-  static int first=1;
-  static double *prob_origin,*prob_current;
-  static int **max_track;
+  double *prob_origin=(double*)malloc(sizeof(double)*N_STATES);
+  double *prob_now=(double*)malloc(sizeof(double)*N_STATES);
+  int **prob_2d_max=(int **)malloc(sizeof(int*)*MAX_SENTENCE);
   int i=0,k=0,j=0,max_lab = 0;
   double *tmp_flip,prob;
   double prob_max = LLONG_MIN;
   /*prob init*/
-  
-  if(first)
-  {
-    first=0;
-    prob_origin=(double*)malloc(sizeof(double)*N_STATES);
-    prob_current=(double*)malloc(sizeof(double)*N_STATES);
-    max_track=(int **)malloc(sizeof(int *)*MAX_SENTENCE);
-    for(i=0;i<MAX_SENTENCE-1;++i)
-        max_track[i]=(int*)malloc(sizeof(int)*N_STATES);
-  }
+  for(i=0;i<x.len-1;++i)
+    prob_2d_max[i]=(int *)malloc(sizeof(int)*N_STATES);
+  /*prob init*/
   /*evaluate probability*/
   for(k=0;k<x.len;++k)
   {
@@ -358,22 +351,22 @@ LABEL find_most_violated_constraint_marginrescaling(PATTERN x, LABEL y,
         prob_origin[i]=eval_prob(x.seq,sm->w,i,k)+getloss(y.lab[0],k);
       else
       {
-        prob_current[i]=LLONG_MIN;
+        prob_now[i]=LLONG_MIN;
         prob=eval_prob(x.seq,sm->w,i,k);
         for(j=0;j<N_STATES;++j) 
         {
           double tmp=prob_origin[j]+sm->w[INPUT_STATES*N_STATES+j*N_STATES+i+1]+prob+getloss(y.lab[k],i);
-          if(tmp>prob_current[i])
+          if(tmp>prob_now[i])
           {
-            max_track[k-1][i]=j;
-            prob_current[i]=tmp;
+            prob_2d_max[k-1][i]=j;
+            prob_now[i]=tmp;
           }
         }
       }
     }
     tmp_flip=prob_origin;
-    prob_origin=prob_current;
-    prob_current=tmp_flip;   //  why do this?
+    prob_origin=prob_now;
+    prob_now=tmp_flip;   //  why do this?
   }
   /*y bar init*/
   ybar.len=x.len;
@@ -389,9 +382,14 @@ LABEL find_most_violated_constraint_marginrescaling(PATTERN x, LABEL y,
   ybar.lab[ybar.len-1] = (char)max_lab;
   for(i=ybar.len-2;i>-1;--i)  /*should modify*/
   {
-    max_lab=max_track[i][max_lab];
+    max_lab=prob_2d_max[i][max_lab];
     ybar.lab[i]=(char)max_lab;
   }
+  for(i=0;i<x.len-1;++i)
+    free(prob_2d_max[i]);
+  free(prob_2d_max);
+  free(prob_origin);
+  free(prob_now);
   /*Jacky end*/
   return(ybar);
 }
