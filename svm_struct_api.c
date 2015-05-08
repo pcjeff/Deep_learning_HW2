@@ -250,11 +250,11 @@ LABEL       classify_struct_example(PATTERN x, STRUCTMODEL *sm,
       prob_max =prob_origin[i];
     }
   }
-  y.lab[y.len-1]= max_lab;
+  y.lab[y.len-1]=(char)max_lab;
   for(i=y.len-2;i>=0;--i)
   {
     max_lab=max_track[i][max_lab];
-    y.lab[i]=max_lab;
+    y.lab[i]=(char)max_lab;
   }
   /*free malloc*/
   for(i=0;i<x.len-1;++i)
@@ -386,11 +386,11 @@ LABEL find_most_violated_constraint_marginrescaling(PATTERN x, LABEL y,
       max_lab=i;
     }
   }
-  ybar.lab[ybar.len-1] =max_lab;
+  ybar.lab[ybar.len-1] = (char)max_lab;
   for(i=ybar.len-2;i>-1;--i)  /*should modify*/
   {
     max_lab=max_track[i][max_lab];
-    ybar.lab[i]=max_lab;
+    ybar.lab[i]=(char)max_lab;
   }
   /*Jacky end*/
   return(ybar);
