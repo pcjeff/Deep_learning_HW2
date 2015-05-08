@@ -1,8 +1,9 @@
 your environment:
 Mac OS X 10.10.3 terminal
 
-programming language
-C language 
+programming language:
+C language(PartA & PartB)
 
-how to execute
-./svm_empty_learn -c 1 traindata_partb model_file
+how to execute:
+1. make (Makefile)
+2. ./svm_empty_learn -c 1 traindata_name model_file (traindata_name is the filename of train data)
