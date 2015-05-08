@@ -63,10 +63,10 @@ SAMPLE      read_struct_examples(char *file, STRUCT_LEARN_PARM *sparm)
   FILE *fp = NULL; 
   
   n=4000; /* replace by appropriate number of examples */
-  examples=(EXAMPLE *)malloc(sizeof(EXAMPLE)*n);
+  examples=(EXAMPLE *)my_malloc(sizeof(EXAMPLE)*n);
 
   /* fill in your code here */
-  char *sentID = (char*)malloc(sizeof(char)*100);//for sentence Id
+  char *sentID = (char*)my_malloc(sizeof(char)*100);//for sentence Id
   //sentID = "";
   int i=-1, j=0, k=0; //for iteration
   int frame_size = 0;
@@ -92,8 +92,8 @@ SAMPLE      read_struct_examples(char *file, STRUCT_LEARN_PARM *sparm)
 	frame_size = sent_frame_size[i];
 	examples[i].x.len = frame_size;
 	examples[i].y.len = frame_size;
-	examples[i].x.seq = (float*)malloc(sizeof(float)*69*frame_size);
-	examples[i].y.lab = (int*)malloc(sizeof(int)*frame_size);
+	examples[i].x.seq = (float*)my_malloc(sizeof(float)*69*frame_size);
+	examples[i].y.lab = (int*)my_malloc(sizeof(int)*frame_size);
 	j=0;
    //printf("i: %d\n",i);
    //printf("frame: %d\n", frame_size);
@@ -132,7 +132,11 @@ void        init_struct_model(SAMPLE sample, STRUCTMODEL *sm,
      weights that can be learned. Later, the weight vector w will
      contain the learned weights for the model. */
 
-  sm->sizePsi=48*69 + 48*48; /* replace by appropriate number of features */
+  sm->sizePsi = 48*69 + 48*48;
+  sm->w = (double*)malloc(sizeof(double)*sm->sizePsi);
+  MODEL * svm_model = (MODEL*)malloc(sizeof(MODEL));
+  svm_model->kernel_parm.kernel_type = -1;
+  sm->svm_model = svm_model;
 }
 
 CONSTSET    init_struct_constraints(SAMPLE sample, STRUCTMODEL *sm, 
@@ -159,8 +163,8 @@ CONSTSET    init_struct_constraints(SAMPLE sample, STRUCTMODEL *sm,
   else { /* add constraints so that all learned weights are
             positive. WARNING: Currently, they are positive only up to
             precision epsilon set by -e. */
-    c.lhs=malloc(sizeof(DOC *)*sizePsi);
-    c.rhs=malloc(sizeof(double)*sizePsi);
+    c.lhs=my_malloc(sizeof(DOC *)*sizePsi);
+    c.rhs=my_malloc(sizeof(double)*sizePsi);
     for(i=0; i<sizePsi; i++) {
       words[0].wnum=i+1;
       words[0].weight=1.0;
@@ -246,11 +250,11 @@ LABEL       classify_struct_example(PATTERN x, STRUCTMODEL *sm,
       prob_max =prob_origin[i];
     }
   }
-  y.lab[y.len-1]= (char)max_lab;
+  y.lab[y.len-1]= max_lab;
   for(i=y.len-2;i>=0;--i)
   {
     max_lab=max_track[i][max_lab];
-    y.lab[i]=(char)max_lab;
+    y.lab[i]=max_lab;
   }
   /*free malloc*/
   for(i=0;i<x.len-1;++i)
@@ -382,11 +386,11 @@ LABEL find_most_violated_constraint_marginrescaling(PATTERN x, LABEL y,
       max_lab=i;
     }
   }
-  ybar.lab[ybar.len-1] =(char)max_lab;
+  ybar.lab[ybar.len-1] =max_lab;
   for(i=ybar.len-2;i>-1;--i)  /*should modify*/
   {
     max_lab=max_track[i][max_lab];
-    ybar.lab[i]=(char)max_lab;
+    ybar.lab[i]=max_lab;
   }
   /*Jacky end*/
   return(ybar);
@@ -562,7 +566,6 @@ void        free_pattern(PATTERN x) {
 
 void        free_label(LABEL y) {
   /* Frees the memory of y. */
-  //free(y.lab);
 }
 
 void        free_struct_model(STRUCTMODEL sm) 
